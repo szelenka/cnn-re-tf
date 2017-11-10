@@ -156,7 +156,7 @@ class Model(object):
                 pre, rec = _auc_pr(self._labels, tf.sigmoid(self.logits), threshold * 0.1)
                 precision.append(pre)
                 recall.append(rec)
-            self._eval_op = zip(precision, recall)
+            self._eval_op = list(zip(precision, recall))
 
             # f1 score on threshold=0.5
             #self._f1_score = tf.truediv(tf.mul(tf.constant(2.0, dtype=tf.float64),

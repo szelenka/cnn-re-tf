@@ -127,7 +127,7 @@ def shuffle_split(X, y, a=None, train_size=10000, shuffle=True):
 
     print("Splitting data...",)
     # split train-test
-    data = np.array(zip(_X, _y, _a))
+    data = np.array(list(zip(_X, _y, _a)))
     data_size = _y.shape[0]
     if train_size > data_size:
         train_size = int(data_size * 0.9)
@@ -200,7 +200,7 @@ def shuffle_split_contextwise(X, y, a=None, train_size=10000, shuffle=True):
 
     print("Splitting data...")
     # split train-test
-    data = np.array(zip(_left, _middle, _right, _y, _a))
+    data = np.array(list(zip(_left, _middle, _right, _y, _a)))
     data_size = _y.shape[0]
     if train_size > data_size:
         train_size = int(data_size * 0.9)
