@@ -16,14 +16,18 @@ import time
 import requests
 from urllib.request import urlopen
 import glob
-from io import open
+import io
 from itertools import combinations
 from collections import Counter
 import util
 
+import spacy
+from spacy.symbols import nsubj, VERB
+
 
 
 # global variables
+nlp = spacy.load('en')
 data_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 orig_dir = os.path.join(data_dir, 'orig')
 ner_dir = os.path.join(data_dir, 'ner')
@@ -91,7 +95,7 @@ def download_wiki_articles(doc_id, limit=100, retry=False):
             title = re.sub(r"[ /]", "_", page['title'])
             filename = page['id'] + '-' + title + '.txt'
             docs.append(filename)
-            with open(os.path.join(orig_dir, filename), 'w', encoding='utf-8') as f:
+            with io.open(os.path.join(orig_dir, filename), mode='w', encoding='utf-8') as f:
                 f.write(text)
     return docs
 
@@ -107,6 +111,55 @@ def exec_ner(filenames):
         os.system(cmd)
 
 
+def read_ner_spacy(filenames):
+    """read NER output files and store them in a pandas DataFrame"""
+    # class Corpus(object):
+    #     def __iter__(self):
+    #         for parsed in nlp.pipe(
+    #             texts=data,
+    #             batch_size=5000,
+    #             n_threads=cpu_count() - 1 # use as many cores that are available
+    #         ):
+    #             yield cb(parsed)
+    rows = []
+    for filename in filenames:
+        path = os.path.join(orig_dir, filename)
+        if not os.path.exists(path):
+            continue
+
+        parsed = nlp(io.open(path, mode='r', encoding='utf-8').read())
+        doc_id = filename.split('/')[-1].split('-', 1)[0]
+        for sent_id, sentence in enumerate(parsed.sents):
+            ent = [i for i, t in enumerate(sentence) if t[1] in tag_map.keys()]
+            dic = dict(
+                doc_id=doc_id,
+                sent_id=sent_id,
+                sent=sentence.text,
+                subj=None,
+                subj_begin=None,
+                subj_end=None,
+                subj_tag=None,
+                rel=None,
+                obj=None,
+                obj_begin=None,
+                obj_end=None,
+                obj_tag=None
+            )
+            for ent in sentence.ents:
+                dic['subj'] = ent.text
+                dic['subj_begin'] = ent.start_char
+                dic['subj_end'] = ent.end_char
+                dic['subj_tag'] = ent.label_
+
+            # Finding a verb with a subject from below — good
+            verbs = set()
+            for token in sentence:
+                if token.dep == nsubj and token.head.pos == VERB:
+                    verbs.add(token.head)
+            rows.append(dic)
+    return pd.DataFrame(rows)
+
+
 def read_ner_output(filenames):
     """read NER output files and store them in a pandas DataFrame"""
     rows = []
@@ -114,7 +167,7 @@ def read_ner_output(filenames):
         path = os.path.join(ner_dir, filename)
         if not os.path.exists(path):
             continue
-        with open(path, 'r', encoding='utf-8') as f:
+        with io.open(path, 'r', encoding='utf-8') as f:
             doc_id = filename.split('/')[-1].split('-', 1)[0]
             counter = 0
             tmp = []
@@ -288,7 +341,7 @@ def slot_filling(qid, pid, tag, retry=False):
     """find slotfiller
 
     >>> slot_filling('Q76', 'P27', 'LOCATION') # Q76: Barack Obama, P27: country of citizenship
-    [(u'United States', u'Q30', u'/m/09c7w0')]
+    [('United States', 'Q30', '/m/09c7w0')]
     """
 
     hpCharURL = 'https://query.wikidata.org/sparql?query=\
@@ -338,13 +391,14 @@ def loop(step, doc_id, limit, entities, relations, counter):
     """Distant Supervision Loop"""
     # Download wiki articles
     print('[1/4] Downloading wiki articles ...')
-    docs = download_wiki_articles(doc_id, limit)
+    # docs = download_wiki_articles(doc_id, limit)
+    docs = os.listdir('./data/orig')
     if docs is None:
         return None
 
     # Named Entity Recognition
     print('[2/4] Performing named entity recognition ...')
-    exec_ner(docs)
+    # exec_ner(docs)
     wiki_data = read_ner_output(docs)
     path = os.path.join(data_dir, 'candidates%d.tsv' % step)
     wiki_data.to_csv(path, sep='\t', encoding='utf-8')
@@ -408,7 +462,7 @@ def loop(step, doc_id, limit, entities, relations, counter):
 def extract_relations(entities, relations):
     """extract relations"""
     rows = []
-    for k, v in relations.iteritems():
+    for k, v in relations.items():
         if v is not None and len(v) > 0:
             for r in v:
                 dic = {}
@@ -528,7 +582,7 @@ def load_gold_patterns():
 
     g_patterns = []
     g_labels = []
-    with open(os.path.join(data_dir, 'gold_patterns.tsv'), 'r') as f:
+    with io.open(os.path.join(data_dir, 'gold_patterns.tsv'), 'r') as f:
         for line in f.readlines():
             line = line.strip()
             if len(line) > 0 and not line.startswith('#'):
@@ -586,7 +640,7 @@ def extract_positive():
     positive_df['attention'] = pd.Series([0.0]*len(positive_df), index=positive_df.index, dtype=np.float32)
 
     num_er = 0
-    with open(os.path.join(data_dir, 'er', 'source.txt'), 'w', encoding='utf-8') as f:
+    with io.open(os.path.join(data_dir, 'er', 'source.txt'), 'w', encoding='utf-8') as f:
         for idx, row in positive_df.iterrows():
 
             # restore relation
@@ -630,7 +684,7 @@ def extract_positive():
                     num_er += 1
                     f.write(subj + ' ' + r + ' ' + obj + '\n')
 
-    with open(os.path.join(data_dir, 'er', 'target.txt'), mode='w', encoding='utf-8') as f:
+    with io.open(os.path.join(data_dir, 'er', 'target.txt'), mode='w', encoding='utf-8') as f:
         for _ in range(num_er):
             f.write('1 0\n')
 
@@ -658,8 +712,8 @@ def extract_negative():
     negative_df = pd.read_csv(os.path.join(data_dir, 'negative_candidates.tsv'),
                               sep='\t', encoding='utf-8', index_col=0)
 
-    with open(os.path.join(data_dir, 'er', 'source.txt'), 'a', encoding='utf-8') as source_file:
-        with open(os.path.join(data_dir, 'er', 'target.txt'), 'a', encoding='utf-8') as target_file:
+    with io.open(os.path.join(data_dir, 'er', 'source.txt'), 'a', encoding='utf-8') as source_file:
+        with io.open(os.path.join(data_dir, 'er', 'target.txt'), 'a', encoding='utf-8') as target_file:
             for idx, row in negative_df.iterrows():
                 s = row['sent']
 
@@ -678,8 +732,8 @@ def extract_negative():
 
 def main():
     # gather positive examples
-    if not os.path.exists(os.path.join(data_dir, 'positive_candidates.tsv')):
-        positive_examples()
+    #if not os.path.exists(os.path.join(data_dir, 'positive_candidates.tsv')):
+    positive_examples()
     extract_positive()
 
     # gather negative examples
