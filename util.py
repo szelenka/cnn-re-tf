@@ -338,9 +338,10 @@ def offset(array, pre, post):
     return ret
 
 
-def calc_auc_pr(precision, recall):
+def calc_auc_pr(precision, recall, threshold=5):
     assert len(precision) == len(recall)
-    return np.trapz(offset(precision, 1, 0), x=offset(recall, 0, 1), dx=5)
+    # impute any nan as zero
+    return np.trapz(offset(np.nan_to_num(precision), 1, 0), x=offset(np.nan_to_num(recall), 0, 1), dx=threshold)
 
 
 def prepare_ids(data_dir, vocab_path):

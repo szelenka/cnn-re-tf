@@ -152,6 +152,7 @@ class Model(object):
         with tf.variable_scope('evaluation') as scope:
             precision = []
             recall = []
+            # walk thresholds at 100%, 90%, ... 10%
             for threshold in range(10, -1, -1):
                 pre, rec = _auc_pr(self._labels, tf.sigmoid(self.logits), threshold * 0.1)
                 precision.append(pre)

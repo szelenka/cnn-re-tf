@@ -136,8 +136,10 @@ def train(train_data, test_data):
                 proc_duration = time.time() - start_time
                 train_loss.append(loss_value)
                 pre, rec = zip(*eval_value)
-                auc = util.calc_auc_pr(pre, rec)
-                f1 = (2.0 * pre[5] * rec[5]) / (pre[5] + rec[5]) # threshold = 0.5
+                # look at the 5th index, which corresponds to a threshold = 0.5
+                threshold = 5
+                auc = util.calc_auc_pr(pre, rec, threshold)
+                f1 = (2.0 * pre[threshold] * rec[threshold]) / (pre[threshold] + rec[threshold])
                 train_auc.append(auc)
                 train_f1_score.append(f1)
 

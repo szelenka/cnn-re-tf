@@ -1,0 +1,8 @@
+matplotlib
+numpy
+pandas
+spacy
+bs4
+tensorflow>=1.0
+requests
+sklearn

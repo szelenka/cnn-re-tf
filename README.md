@@ -7,7 +7,7 @@
 
 ## Requirements
 
-- [Python 2.7](https://www.python.org/)
+- [Python >= 3.5](https://www.python.org/)
 - [Tensorflow](https://www.tensorflow.org/) (tested with version <strike>0.10.0rc0</strike> -> 1.0.1)
 - [Numpy](http://www.numpy.org/)
 
@@ -60,6 +60,25 @@ and unzip it to the directory. It will be a `.bin` file.
 python ./util.py
 ```
 It creates `vocab.txt`, `ids.txt` and `emb.npy` files.
+
+    ```
+    cnn-re-tf
+    ├── ...
+    ├── word2vec
+    └── data
+        ├── er              # binay-classification dataset
+        │   ├── ids.txt         #   
+        │   ├── source.txt      #   source sentences
+        │   ├── target.txt      #   target labels
+        │   └── vocab.txt       #   one term per line
+        └── mlmi            # multi-label multi-instance dataset
+            ├── source.att      #   attention
+            ├── source.left     #   left context
+            ├── source.middle   #   middle context
+            ├── source.right    #   right context
+            ├── source.txt      #   source sentences
+            └── target.txt      #   target labels
+    ```    
 
 ### Training
 
