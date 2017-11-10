@@ -8,7 +8,7 @@
 
 import os
 import re
-from io import open as io_open
+import io
 import pickle
 import numpy as np
 
@@ -26,7 +26,7 @@ PAD_ID = 0
 UNK_ID = 1
 
 # Regular expressions used to tokenize.
-_DIGIT_RE = re.compile(br"^\d+$")
+_DIGIT_RE = re.compile(r"^\d+$")
 
 
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -51,7 +51,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size=40000, tok
     if not os.path.exists(vocabulary_path):
         print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
         vocab = {}
-        with io_open(data_path, mode="rb", encoding="utf-8") as f:
+        with io.open(data_path, mode="r", encoding='utf-8') as f:
             for line in f.readlines():
                 tokens = tokenizer(line) if tokenizer else basic_tokenizer(line, bos, eos)
                 for w in tokens:
@@ -64,9 +64,9 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size=40000, tok
             if len(vocab_list) > max_vocabulary_size:
                 print("  %d words found. Truncate to %d." % (len(vocab_list), max_vocabulary_size))
                 vocab_list = vocab_list[:max_vocabulary_size]
-            with io_open(vocabulary_path, mode="wb", encoding="utf-8") as vocab_file:
+            with io.open(vocabulary_path, mode="w", encoding="utf-8") as vocab_file:
                 for w in vocab_list:
-                    vocab_file.write(bytes(w + "\n"))
+                    vocab_file.write(w + "\n")
 
 
 def initialize_vocabulary(vocabulary_path):
@@ -77,7 +77,7 @@ def initialize_vocabulary(vocabulary_path):
     """
     if os.path.exists(vocabulary_path):
         rev_vocab = []
-        with io_open(vocabulary_path, mode="rb", encoding="utf-8") as f:
+        with io.open(vocabulary_path, mode="r", encoding="utf-8") as f:
             rev_vocab.extend(f.readlines())
         rev_vocab = [line.strip() for line in rev_vocab]
         vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
@@ -105,11 +105,11 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, tokenizer=None, b
     if not os.path.exists(target_path):
         print("Vectorizing data in %s" % data_path)
         vocab, _ = initialize_vocabulary(vocabulary_path)
-        with io_open(data_path, mode="rb", encoding="utf-8") as data_file:
-            with io_open(target_path, mode="wb", encoding="utf-8") as tokens_file:
+        with io.open(data_path, mode="r", encoding="utf-8") as data_file:
+            with io.open(target_path, mode="w", encoding="utf-8") as tokens_file:
                 for line in data_file:
                     token_ids = sentence_to_token_ids(line, vocab, tokenizer, bos, eos)
-                    tokens_file.write(bytes(" ".join([str(tok) for tok in token_ids]) + "\n"))
+                    tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
 
 def shuffle_split(X, y, a=None, train_size=10000, shuffle=True):
@@ -149,8 +149,8 @@ def read_data(source_path, target_path, sent_len, attention_path=None, train_siz
     """
     _X = []
     _y = []
-    with io_open(source_path, mode="r", encoding="utf-8") as source_file:
-        with io_open(target_path, mode="r", encoding="utf-8") as target_file:
+    with io.open(source_path, mode="r", encoding="utf-8") as source_file:
+        with io.open(target_path, mode="r", encoding="utf-8") as target_file:
             source, target = source_file.readline(), target_file.readline()
             #counter = 0
             print("Loading data...")
@@ -176,7 +176,7 @@ def read_data(source_path, target_path, sent_len, attention_path=None, train_siz
 
     _a = None
     if attention_path is not None:
-        with io_open(attention_path, mode="r", encoding="utf-8") as att_file:
+        with io.open(attention_path, mode="r", encoding="utf-8") as att_file:
             _a = [np.float32(att.strip()) for att in att_file.readlines()]
             assert len(_a) == len(_y)
 
@@ -225,7 +225,7 @@ def read_data_contextwise(source_path, target_path, sent_len, attention_path=Non
     _X = {'left': [], 'middle': [], 'right': []}
     for context in _X.keys():
         path = '%s.%s' % (source_path, context)
-        with io_open(path, mode="r", encoding="utf-8") as source_file:
+        with io.open(path, mode="r", encoding="utf-8") as source_file:
             for source in source_file.readlines():
                 source_ids = [np.int64(x.strip()) for x in source.split()]
                 if sent_len > len(source_ids):
@@ -236,7 +236,7 @@ def read_data_contextwise(source_path, target_path, sent_len, attention_path=Non
     assert len(_X['right']) == len(_X['middle'])
 
     _y = []
-    with io_open(target_path, mode="r", encoding="utf-8") as target_file:
+    with io.open(target_path, mode="r", encoding="utf-8") as target_file:
         for target in target_file.readlines():
             target_ids = [np.float32(y.strip()) for y in target.split()]
             _y.append(target_ids)
@@ -245,7 +245,7 @@ def read_data_contextwise(source_path, target_path, sent_len, attention_path=Non
 
     _a = None
     if attention_path is not None:
-        with io_open(attention_path, mode="r", encoding="utf-8") as att_file:
+        with io.open(attention_path, mode="r", encoding="utf-8") as att_file:
             _a = [np.float32(att.strip()) for att in att_file.readlines()]
             assert len(_a) == len(_y)
 
