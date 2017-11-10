@@ -77,7 +77,7 @@ def initialize_vocabulary(vocabulary_path):
     """
     if os.path.exists(vocabulary_path):
         rev_vocab = []
-        with io.open(vocabulary_path, mode="r", encoding="utf-8") as f:
+        with io.open(vocabulary_path, mode="rb") as f:
             rev_vocab.extend(f.readlines())
         rev_vocab = [line.strip() for line in rev_vocab]
         vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
@@ -293,7 +293,7 @@ def _load_bin_vec(fname, vocab):
     https://github.com/yuhaozhang/sentence-convnet/blob/master/text_input.py
     """
     word_vecs = {}
-    with open(fname, "rb") as f:
+    with io.open(fname, mode="rb") as f:
         header = f.readline()
         vocab_size, layer1_size = map(int, header.split())
         binary_len = np.dtype('float32').itemsize * layer1_size
@@ -301,10 +301,10 @@ def _load_bin_vec(fname, vocab):
             word = []
             while True:
                 ch = f.read(1)
-                if ch == ' ':
-                    word = ''.join(word)
+                if ch == b' ':
+                    word = b''.join(word)
                     break
-                if ch != '\n':
+                if ch != b'\n':
                     word.append(ch)
             if word in vocab:
                 word_vecs[word] = np.fromstring(str(f.read(binary_len)), dtype='float32')

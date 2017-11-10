@@ -185,7 +185,7 @@ class Model(object):
                 pre, rec = _auc_pr(self._labels, tf.sigmoid(self.logits), threshold * 0.1)
                 precision.append(pre)
                 recall.append(rec)
-            self._eval_op = zip(precision, recall)
+            self._eval_op = list(zip(precision, recall))
 
         # train on a batch
         self._lr = tf.Variable(0.0, trainable=False)
