@@ -110,8 +110,10 @@ def train(train_data, test_data):
                         feed_dict={mtest.inputs: np.array(x_batch), mtest.labels: np.array(y_batch)})
                     dev_loss.append(loss_value)
                     pre, rec = zip(*eval_value)
-                    dev_auc.append(util.calc_auc_pr(pre, rec))
-                    dev_f1_score.append((2.0 * pre[5] * rec[5]) / (pre[5] + rec[5])) # threshold = 0.5
+                    # look at the 5th index, which corresponds to a threshold = 0.5
+                    threshold = 5
+                    dev_auc.append(util.calc_auc_pr(pre, rec, threshold))
+                    dev_f1_score.append((2.0 * pre[threshold] * rec[threshold]) / (pre[threshold] + rec[threshold]))
 
                 return np.mean(dev_loss), np.mean(dev_auc), np.mean(dev_f1_score)
 

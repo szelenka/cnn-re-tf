@@ -124,8 +124,10 @@ def train(train_data, test_data):
                     loss_value, eval_value = sess.run([mtest.total_loss, mtest.eval_op], feed_dict=feed)
                     dev_loss.append(loss_value)
                     pre, rec = zip(*eval_value)
-                    dev_auc.append(util.calc_auc_pr(pre, rec))
-                    dev_f1_score.append((2.0 * pre[5] * rec[5]) / (pre[5] + rec[5])) # threshold = 0.5
+                    # look at the 5th index, which corresponds to a threshold = 0.5
+                    threshold = 5
+                    dev_auc.append(util.calc_auc_pr(pre, rec, threshold))
+                    dev_f1_score.append((2.0 * pre[threshold] * rec[threshold]) / (pre[threshold] + rec[threshold]))
 
                 return np.mean(dev_loss), np.mean(dev_auc), np.mean(dev_f1_score)
 
@@ -153,8 +155,10 @@ def train(train_data, test_data):
                 proc_duration = time.time() - start_time
                 train_loss.append(loss_value)
                 pre, rec = zip(*eval_value)
-                auc = util.calc_auc_pr(pre, rec)
-                f1 = (2.0 * pre[5] * rec[5]) / (pre[5] + rec[5])    # threshold = 0.5
+                # look at the 5th index, which corresponds to a threshold = 0.5
+                threshold = 5
+                auc = util.calc_auc_pr(pre, rec, threshold)
+                f1 = (2.0 * pre[threshold] * rec[threshold]) / (pre[threshold] + rec[threshold])
                 train_auc.append(auc)
                 train_f1_score.append(f1)
 
