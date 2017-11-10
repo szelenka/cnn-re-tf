@@ -307,7 +307,7 @@ def _load_bin_vec(fname, vocab):
                 if ch != b'\n':
                     word.append(ch)
             if word in vocab:
-                word_vecs[word] = np.fromstring(str(f.read(binary_len)), dtype='float32')
+                word_vecs[word] = np.fromstring(f.read(binary_len), dtype='float32')
             else:
                 f.read(binary_len)
     return (word_vecs, layer1_size)
