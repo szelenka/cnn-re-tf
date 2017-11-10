@@ -14,16 +14,13 @@ import os
 import re
 import time
 import requests
-import urllib
 from urllib.request import urlopen
 import glob
 from io import open
 from itertools import combinations
 from collections import Counter
-
 import util
 
-import sys
 
 
 # global variables
@@ -43,8 +40,10 @@ tag_map = {
 }
 
 # column names in DataFrame
-col = ['doc_id', 'sent_id', 'sent', 'subj', 'subj_begin', 'subj_end', 'subj_tag',
-       'rel', 'obj', 'obj_begin', 'obj_end', 'obj_tag']
+col = [
+    'doc_id', 'sent_id', 'sent', 'subj', 'subj_begin', 'subj_end', 'subj_tag',
+    'rel', 'obj', 'obj_begin', 'obj_end', 'obj_tag'
+]
 
 
 def sanitize(string):
@@ -66,7 +65,7 @@ def download_wiki_articles(doc_id, limit=100, retry=False):
         if not retry:
             download_wiki_articles(doc_id, limit, retry=True)
         else:
-            print(e.message)
+            print(e)
             return None
     pages = bs(r, "html.parser").findAll('page')
     if len(pages) < 1:
@@ -212,7 +211,7 @@ def name2qid(name, tag, alias=False, retry=False):
         else:
             return None
     except Exception as e:
-        print(e.message)
+        print(e)
         return None
 
     # check json format
@@ -265,7 +264,7 @@ def search_property(qid1, qid2, retry=False):
         else:
             return None
     except Exception as e:
-        print(e.message)
+        print(e)
         return None
 
     # check json format
@@ -278,7 +277,7 @@ def search_property(qid1, qid2, retry=False):
     results = []
     for elm in response['results']['bindings']:
         schema = ''
-        if elm.has_key('s'):
+        if 's' in elm:
             schema = elm['s']['value'].split('/')[-1]
         results.append((elm['p']['value'].split('/')[-1], elm['l']['value'], schema))
 
@@ -315,7 +314,7 @@ def slot_filling(qid, pid, tag, retry=False):
         else:
             return None
     except Exception as e:
-        print(e.message)
+        print(e)
         return None
 
     # check json format
@@ -328,7 +327,7 @@ def slot_filling(qid, pid, tag, retry=False):
     results = []
     for elm in response['results']['bindings']:
         fid = ''
-        if elm.has_key('fid'):
+        if 'fid' in elm:
             fid = elm['fid']['value']
         results.append((elm['itemLabel']['value'], elm['item']['value'].split('/')[-1], fid))
 
@@ -362,7 +361,7 @@ def loop(step, doc_id, limit, entities, relations, counter):
     # Entity Linkage
     print('[3/4] Linking entities ...')
     for name, tag in unique_entities:
-        if not entities.has_key(name) and tag in tag_map.keys():
+        if not name in entities and tag in tag_map.keys():
             e = name2qid(name, tag, alias=False)
             if e is None:
                 e = name2qid(name, tag, alias=True)
@@ -372,7 +371,7 @@ def loop(step, doc_id, limit, entities, relations, counter):
     # Predicate Linkage
     print('[4/4] Linking predicates ...')
     for subj, obj in unique_entity_pairs:
-        if not relations.has_key((subj, obj)):
+        if not (subj, obj) in relations:
             if entities[subj] is not None and entities[obj] is not None:
                 if (entities[subj][0] != entities[obj][0]) or (subj != obj):
                     arg1 = entities[subj][0]
@@ -388,7 +387,7 @@ def loop(step, doc_id, limit, entities, relations, counter):
     for idx, row in wiki_data.iterrows():
         entity_pair = (row['subj'], row['obj'])
 
-        if relations.has_key(entity_pair):
+        if entity_pair in relations:
             rel = relations[entity_pair]
             if rel is not None and len(rel) > 0:
                 counter += 1
@@ -487,8 +486,10 @@ def negative_examples():
 
         # Assign relation
         for idx, row in negative_df.iterrows():
-            if (entities.has_key(row['subj']) and entities[row['subj']] is not None \
-                        and entities.has_key(row['obj']) and entities[row['obj']] is not None):
+            if (
+                row['subj'] in entities and entities[row['subj']] is not None
+                and row['obj'] in entities and entities[row['obj']] is not None
+            ):
                 qid = entities[row['subj']][0]
                 target = entities[row['obj']][0]
                 candidates = []
@@ -674,6 +675,7 @@ def extract_negative():
                         source_file.write(subj + ' ' + r + ' ' + obj + '\n')
                         target_file.write('0 1\n')
 
+
 def main():
     # gather positive examples
     if not os.path.exists(os.path.join(data_dir, 'positive_candidates.tsv')):
@@ -684,8 +686,6 @@ def main():
     if not os.path.exists(os.path.join(data_dir, 'negative_candidates.tsv')):
         negative_examples()
     extract_negative()
-
-
 
 
 if __name__ == '__main__':

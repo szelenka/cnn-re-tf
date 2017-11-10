@@ -66,7 +66,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size=40000, tok
                 vocab_list = vocab_list[:max_vocabulary_size]
             with io_open(vocabulary_path, mode="wb", encoding="utf-8") as vocab_file:
                 for w in vocab_list:
-                    vocab_file.write(w + "\n")
+                    vocab_file.write(bytes(w + "\n"))
 
 
 def initialize_vocabulary(vocabulary_path):
@@ -109,7 +109,7 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, tokenizer=None, b
             with io_open(target_path, mode="wb", encoding="utf-8") as tokens_file:
                 for line in data_file:
                     token_ids = sentence_to_token_ids(line, vocab, tokenizer, bos, eos)
-                    tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
+                    tokens_file.write(bytes(" ".join([str(tok) for tok in token_ids]) + "\n"))
 
 
 def shuffle_split(X, y, a=None, train_size=10000, shuffle=True):

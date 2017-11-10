@@ -28,7 +28,7 @@ def evaluate(eval_data, config):
 
     with tf.Graph().as_default():
         with tf.variable_scope('cnn'):
-            if config.has_key('contextwise') and config['contextwise']:
+            if 'contextwise' in config and config['contextwise']:
                 import cnn_context
                 m = cnn_context.Model(config, is_train=False)
             else:
@@ -44,7 +44,7 @@ def evaluate(eval_data, config):
                 raise IOError("Loading checkpoint file failed!")
 
             print("\nStart evaluation on test set ...\n")
-            if config.has_key('contextwise') and config['contextwise']:
+            if 'contextwise' in config and config['contextwise']:
                 left_batch, middle_batch, right_batch, y_batch, _ = zip(*eval_data)
                 feed = {m.left: np.array(left_batch),
                         m.middle: np.array(middle_batch),
@@ -67,7 +67,7 @@ def main(argv=None):
     restore_param = util.load_from_dump(os.path.join(FLAGS.train_dir, 'flags.cPickle'))
     restore_param['train_dir'] = FLAGS.train_dir
 
-    if restore_param.has_key('contextwise') and restore_param['contextwise']:
+    if 'contextwise' in restore_param and restore_param['contextwise']:
         source_path = os.path.join(restore_param['data_dir'], "ids")
         target_path = os.path.join(restore_param['data_dir'], "target.txt")
         _, data = util.read_data_contextwise(source_path, target_path, restore_param['sent_len'],
