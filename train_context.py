@@ -56,9 +56,9 @@ def train(train_data, test_data):
 
     # save flags
     util.dump_to_file(os.path.join(out_dir, 'flags.cPickle'), config)
-    print "Parameters:"
+    print("Parameters:")
     for k, v in config.iteritems():
-        print '%20s %r' % (k, v)
+        print('%20s %r' % (k, v))
 
     # max number of steps
     num_batches_per_epoch = int(np.ceil(float(len(train_data))/FLAGS.batch_size))
@@ -97,7 +97,7 @@ def train(train_data, test_data):
 
             # assign pretrained embeddings
             if FLAGS.use_pretrain:
-                print "Initialize model with pretrained embeddings..."
+                print("Initialize model with pretrained embeddings...")
                 pretrained_embedding = np.load(os.path.join(FLAGS.data_dir, 'emb.npy'))
                 m.assign_embedding(sess, pretrained_embedding)
 
@@ -130,7 +130,7 @@ def train(train_data, test_data):
                 return np.mean(dev_loss), np.mean(dev_auc), np.mean(dev_f1_score)
 
             # train loop
-            print "\nStart training (save checkpoints in %s)\n" % out_dir
+            print("\nStart training (save checkpoints in %s)\n" % out_dir)
             train_loss = []
             train_auc = []
             train_f1_score = []
@@ -160,13 +160,13 @@ def train(train_data, test_data):
 
                 assert not np.isnan(loss_value), "Model loss is NaN."
 
-                # print log
+                # print(log)
                 if global_step % FLAGS.log_step == 0:
                     examples_per_sec = batch_size / proc_duration
                     format_str = '%s: step %d/%d, f1 = %.4f, auc = %.4f, loss = %.4f ' + \
                                  '(%.1f examples/sec; %.3f sec/batch), lr: %.6f'
-                    print format_str % (datetime.now(), global_step, max_steps, f1, auc, loss_value,
-                                        examples_per_sec, proc_duration, current_lr)
+                    print(format_str % (datetime.now(), global_step, max_steps, f1, auc, loss_value,
+                                        examples_per_sec, proc_duration, current_lr))
 
                 # write summary
                 if global_step % FLAGS.summary_step == 0:
@@ -190,12 +190,12 @@ def train(train_data, test_data):
                     dev_summary_writer.add_summary(
                         _summary_for_scalar('f1', dev_f1), global_step=global_step)
 
-                    print "\n===== write summary ====="
-                    print "%s: step %d/%d: train_loss = %.6f, train_auc = %.4f train_f1 = %.4f" \
+                    print("\n===== write summary =====")
+                    print("%s: step %d/%d: train_loss = %.6f, train_auc = %.4f train_f1 = %.4f" \
                           % (datetime.now(), global_step, max_steps,
-                             np.mean(train_loss), np.mean(train_auc), np.mean(train_f1_score))
-                    print "%s: step %d/%d:   dev_loss = %.6f,   dev_auc = %.4f   dev_f1 = %.4f\n" \
-                          % (datetime.now(), global_step, max_steps, dev_loss, dev_auc, dev_f1)
+                             np.mean(train_loss), np.mean(train_auc), np.mean(train_f1_score)))
+                    print("%s: step %d/%d:   dev_loss = %.6f,   dev_auc = %.4f   dev_f1 = %.4f\n" \
+                          % (datetime.now(), global_step, max_steps, dev_loss, dev_auc, dev_f1))
 
                     # reset container
                     train_loss = []
@@ -210,8 +210,8 @@ def train(train_data, test_data):
                     decay_step_counter += 1
                 if decay_step_counter >= FLAGS.tolerance_step:
                     current_lr *= FLAGS.lr_decay
-                    print '%s: step %d/%d, Learning rate decays to %.5f' % \
-                          (datetime.now(), global_step, max_steps, current_lr)
+                    print('%s: step %d/%d, Learning rate decays to %.5f' % \
+                          (datetime.now(), global_step, max_steps, current_lr))
                     decay_step_counter = 0
 
                 # stop learning if learning rate is too low

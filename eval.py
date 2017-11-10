@@ -43,7 +43,7 @@ def evaluate(eval_data, config):
             else:
                 raise IOError("Loading checkpoint file failed!")
 
-            print "\nStart evaluation on test set ...\n"
+            print("\nStart evaluation on test set ...\n")
             if config.has_key('contextwise') and config['contextwise']:
                 left_batch, middle_batch, right_batch, y_batch, _ = zip(*eval_data)
                 feed = {m.left: np.array(left_batch),
@@ -58,8 +58,8 @@ def evaluate(eval_data, config):
 
             auc = util.calc_auc_pr(pre, rec)
             f1 = (2.0 * pre[5] * rec[5]) / (pre[5] + rec[5])
-            print '%s: loss = %.6f, p = %.4f, r = %4.4f, f1 = %.4f, auc = %.4f' % (datetime.now(), loss,
-                                                                                   pre[5], rec[5], f1, auc)
+            print('%s: loss = %.6f, p = %.4f, r = %4.4f, f1 = %.4f, auc = %.4f' % (datetime.now(), loss,
+                                                                                   pre[5], rec[5], f1, auc))
     return pre, rec
 
 

@@ -68,7 +68,7 @@ def download_wiki_articles(doc_id, limit=100, retry=False):
         if not retry:
             download_wiki_articles(doc_id, limit, retry=True)
         else:
-            print e.message
+            print(e.message)
             return None
     pages = bs(r, "html.parser").findAll('page')
     if len(pages) < 1:
@@ -154,9 +154,9 @@ def read_ner_output(filenames):
                                 dic['sent'] += ' ' + t[2].strip()
                             else:
                                 dic['sent'] += t[2].strip()
-                                #print '"'+dic['sent']+'"', len(dic['sent'])
+                                #print('"'+dic['sent']+'"', len(dic['sent']))
                         rows.append(dic)
-                        #print dic
+                        #print(dic)
                     counter += 1
                     tmp = []
                 elif len(line.strip()) < 1 and len(tmp) > 0 and len(tmp) <= 2:
@@ -169,7 +169,7 @@ def read_ner_output(filenames):
                     if len(e) == 2 and e[1].strip() in tag_map.keys():
                         e.append('')
                     if len(e) != 3:
-                        print e
+                        print(e)
                         raise Exception
                     tmp.append(e)
                 else:
@@ -213,7 +213,7 @@ def name2qid(name, tag, alias=False, retry=False):
         else:
             return None
     except Exception as e:
-        print e.message
+        print(e.message)
         return None
 
     # check json format
@@ -266,7 +266,7 @@ def search_property(qid1, qid2, retry=False):
         else:
             return None
     except Exception as e:
-        print e.message
+        print(e.message)
         return None
 
     # check json format
@@ -316,7 +316,7 @@ def slot_filling(qid, pid, tag, retry=False):
         else:
             return None
     except Exception as e:
-        print e.message
+        print(e.message)
         return None
 
     # check json format
@@ -339,13 +339,13 @@ def slot_filling(qid, pid, tag, retry=False):
 def loop(step, doc_id, limit, entities, relations, counter):
     """Distant Supervision Loop"""
     # Download wiki articles
-    print '[1/4] Downloading wiki articles ...'
+    print('[1/4] Downloading wiki articles ...')
     docs = download_wiki_articles(doc_id, limit)
     if docs is None:
         return None
 
     # Named Entity Recognition
-    print '[2/4] Performing named entity recognition ...'
+    print('[2/4] Performing named entity recognition ...')
     exec_ner(docs)
     wiki_data = read_ner_output(docs)
     path = os.path.join(data_dir, 'candidates%d.tsv' % step)
@@ -361,7 +361,7 @@ def loop(step, doc_id, limit, entities, relations, counter):
         unique_entity_pairs.add((row['subj'], row['obj']))
 
     # Entity Linkage
-    print '[3/4] Linking entities ...'
+    print('[3/4] Linking entities ...')
     for name, tag in unique_entities:
         if not entities.has_key(name) and tag in tag_map.keys():
             e = name2qid(name, tag, alias=False)
@@ -371,7 +371,7 @@ def loop(step, doc_id, limit, entities, relations, counter):
     util.dump_to_file(os.path.join(data_dir, "entities.cPickle"), entities)
 
     # Predicate Linkage
-    print '[4/4] Linking predicates ...'
+    print('[4/4] Linking predicates ...')
     for subj, obj in unique_entity_pairs:
         if not relations.has_key((subj, obj)):
             if entities[subj] is not None and entities[obj] is not None:
@@ -448,7 +448,7 @@ def positive_examples():
     #    counter += int(wiki_data.rel.count())
 
     while counter < 10000 and step < 100:
-        print '===== step %d =====' % step
+        print('===== step %d =====' % step)
         ret = loop(step, doc_id, limit, entities, relations, counter)
         if ret is not None:
             doc_id, entities, relations, counter = ret
@@ -537,7 +537,7 @@ def load_gold_patterns():
                     g_patterns.append(clean_str(e[1]))
                     g_labels.append(e[0])
                 else:
-                    print e
+                    print(e)
                     raise Exception('Process Error: %s' % os.path.join(data_dir, 'gold_patterns.tsv'))
 
     return pd.DataFrame({'pattern': g_patterns, 'label': g_labels})
