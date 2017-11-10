@@ -57,7 +57,7 @@ def train(train_data, test_data):
     # save flags
     util.dump_to_file(os.path.join(out_dir, 'flags.cPickle'), config)
     print("Parameters:")
-    for k, v in config.iteritems():
+    for k, v in config.items():
         print('%20s %r' % (k, v))
 
     # max number of steps

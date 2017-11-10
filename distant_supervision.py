@@ -10,22 +10,20 @@ import pandas as pd
 import numpy as np
 from bs4 import BeautifulSoup as bs
 
-
 import os
 import re
 import time
 import requests
 import urllib
+from urllib.request import urlopen
 import glob
-from codecs import open
+from io import open
 from itertools import combinations
 from collections import Counter
 
 import util
 
 import sys
-reload(sys)
-sys.setdefaultencoding("utf-8")
 
 
 # global variables
@@ -63,7 +61,7 @@ def download_wiki_articles(doc_id, limit=100, retry=False):
     query = base_path + "&list=random&rnnamespace=0&rnlimit=%d" % limit
     r = None
     try:
-        r = urllib.urlopen(query).read()
+        r = urlopen(query).read()
     except Exception as e:
         if not retry:
             download_wiki_articles(doc_id, limit, retry=True)
@@ -79,7 +77,7 @@ def download_wiki_articles(doc_id, limit=100, retry=False):
             continue
 
         link = base_path + "&prop=revisions&pageids=%s&rvprop=content&rvparse" % page['id']
-        content = urllib.urlopen(link).read()
+        content = urlopen(link).read()
         content = bs(content, "html.parser").find('rev').stripped_strings
 
         # extract paragraph elements only
@@ -179,12 +177,13 @@ def read_ner_output(filenames):
 
 
 def name2qid(name, tag, alias=False, retry=False):
-    """find QID (and Freebase ID if given) by name
+    """
+    find QID (and Freebase ID if given) by name
 
     >>> name2qid('Barack Obama', 'PERSON')        # perfect match
-    (u'Q76', u'/m/02mjmr')
+    ('Q76', '/m/02mjmr')
     >>> name2qid('Obama', 'PERSON', alias=True)   # alias match
-    (u'Q76', u'/m/02mjmr')
+    ('Q33687029', '')
     """
 
     label = 'rdfs:label'
@@ -226,7 +225,7 @@ def name2qid(name, tag, alias=False, retry=False):
     results = []
     for elm in response['results']['bindings']:
         fid = ''
-        if elm.has_key('fid'):
+        if 'fid' in elm:
             fid = elm['fid']['value']
         results.append((elm['item']['value'].split('/')[-1], fid))
 
@@ -438,9 +437,9 @@ def positive_examples():
     step = 1
 
     if not os.path.exists(orig_dir):
-        os.mkdir(orig_dir)
+        os.makedirs(orig_dir)
     if not os.path.exists(ner_dir):
-        os.mkdir(ner_dir)
+        os.makedirs(ner_dir)
 
     #for j in range(1, step):
     #    wiki_data = pd.read_csv(os.path.join(data_dir, "candidates%d.tsv" % j), sep='\t', index_col=0)
@@ -558,9 +557,9 @@ def score_reliability(gold_patterns, sent, rel, subj, obj):
 
 def extract_positive():
     if not os.path.exists(os.path.join(data_dir, 'mlmi')):
-        os.mkdir(os.path.join(data_dir, 'mlmi'))
+        os.makedirs(os.path.join(data_dir, 'mlmi'))
     if not os.path.exists(os.path.join(data_dir, 'er')):
-        os.mkdir(os.path.join(data_dir, 'er'))
+        os.makedirs(os.path.join(data_dir, 'er'))
 
     # read gold patterns to extract attention
     gold_patterns = load_gold_patterns()
@@ -630,7 +629,7 @@ def extract_positive():
                     num_er += 1
                     f.write(subj + ' ' + r + ' ' + obj + '\n')
 
-    with open(os.path.join(data_dir, 'er', 'target.txt'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(data_dir, 'er', 'target.txt'), mode='w', encoding='utf-8') as f:
         for _ in range(num_er):
             f.write('1 0\n')
 
