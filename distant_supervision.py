@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup as bs
 
 import os
 import re
+import collections
 import time
 import requests
 from urllib.request import urlopen
@@ -22,7 +23,6 @@ from collections import Counter
 import util
 
 import spacy
-from spacy.symbols import nsubj, VERB
 
 
 
@@ -37,11 +37,18 @@ ner_path = "/usr/local/Cellar/stanford-ner/3.5.2/libexec/"
 stanford_classifier = os.path.join(ner_path, 'classifiers', 'english.all.3class.distsim.crf.ser.gz')
 stanford_ner = os.path.join(ner_path, 'stanford-ner.jar')
 
-tag_map = {
-    'ORGANIZATION': 'Q43229',  # https://www.wikidata.org/wiki/Q43229
-    'LOCATION': 'Q17334923',   # https://www.wikidata.org/wiki/Q17334923
-    'PERSON': 'Q5'             # https://www.wikidata.org/wiki/Q5
-}
+# tag_map = {
+#     'ORGANIZATION': 'Q43229',  # https://www.wikidata.org/wiki/Q43229
+#     'LOCATION': 'Q17334923',   # https://www.wikidata.org/wiki/Q17334923
+#     'PERSON': 'Q5'             # https://www.wikidata.org/wiki/Q5
+# }
+
+# https://spacy.io/api/annotation#named-entities
+tag_map = dict(
+    ORG='Q43229',
+    GPE='Q17334923',
+    PERSON='Q5',
+)
 
 # column names in DataFrame
 col = [
@@ -108,6 +115,9 @@ def exec_ner(filenames):
         cmd = 'java -mx700m -cp "%s:" edu.stanford.nlp.ie.crf.CRFClassifier' % stanford_ner
         cmd += ' -loadClassifier %s -outputFormat tabbedEntities' % stanford_classifier
         cmd += ' -textFile %s > %s' % (in_path, out_path)
+        # stanford-ner-3.5.1.jar
+        # java -mx700m -cp "stanford-ner-3.5.1.jar:" edu.stanford.nlp.ie.crf.CRFClassifier -loadClassifier ./classifiers/english.all.3class.distsim.crf.ser.gz -outputFormat tabbedEntities -textFile %s
+        # classifiers/english.all.3class.distsim.crf.ser.gz
         os.system(cmd)
 
 
@@ -129,34 +139,40 @@ def read_ner_spacy(filenames):
 
         parsed = nlp(io.open(path, mode='r', encoding='utf-8').read())
         doc_id = filename.split('/')[-1].split('-', 1)[0]
-        for sent_id, sentence in enumerate(parsed.sents):
-            ent = [i for i, t in enumerate(sentence) if t[1] in tag_map.keys()]
-            dic = dict(
-                doc_id=doc_id,
-                sent_id=sent_id,
-                sent=sentence.text,
-                subj=None,
-                subj_begin=None,
-                subj_end=None,
-                subj_tag=None,
-                rel=None,
-                obj=None,
-                obj_begin=None,
-                obj_end=None,
-                obj_tag=None
-            )
-            for ent in sentence.ents:
-                dic['subj'] = ent.text
-                dic['subj_begin'] = ent.start_char
-                dic['subj_end'] = ent.end_char
-                dic['subj_tag'] = ent.label_
 
-            # Finding a verb with a subject from below — good
-            verbs = set()
-            for token in sentence:
-                if token.dep == nsubj and token.head.pos == VERB:
-                    verbs.add(token.head)
-            rows.append(dic)
+        ner = collections.defaultdict(list)
+        for ent in parsed.ents:
+            if ent.label_ not in tag_map.keys():
+                continue
+
+            ner[ent.sent.start_char].append(dict(
+                begin=ent.start_char,
+                end=ent.end_char,
+                text=ent.text,
+                tag=ent.label_
+            ))
+
+        for sent_id, sentence in enumerate(parsed.sents):
+            # get named entities in this sentence
+            ent = ner.get(sentence.start_char, [])
+
+            # if there are more than two, process each combination
+            for c in combinations(ent, 2):
+                # TODO: should we skip when two NER are immediately next to one another?
+                dic = dict(
+                    doc_id=doc_id,
+                    sent_id=sent_id,
+                    sent=sentence.string,
+                    subj=c[0]['text'],
+                    subj_begin=c[0]['begin'] - sentence.start_char,
+                    subj_end=c[0]['end'] - sentence.start_char,
+                    subj_tag=c[0]['tag'],
+                    obj=c[1]['text'],
+                    obj_begin=c[1]['begin'] - sentence.start_char,
+                    obj_end=c[1]['end'] - sentence.start_char,
+                    obj_tag=c[1]['tag']
+                )
+                rows.append(dic)
     return pd.DataFrame(rows)
 
 
@@ -172,46 +188,66 @@ def read_ner_output(filenames):
             counter = 0
             tmp = []
             for line in f.readlines():
+                # after reading the entire line into 'tmp' process it, the 'line' should be only '\n'
                 if len(line.strip()) < 1 and len(tmp) > 2:
+                    # get all entries which were tagged with an named entity in our watch list 'tag_map'
+                    # this returns the index position of those named entities from 'tmp'
                     ent = [i for i, t in enumerate(tmp) if t[1] in tag_map.keys()]
+                    if len(ent) > 2:
+                        a = 1
+                    # for every combination, of at least 2, add an entry splitting on the named entity boundaries
+                    # i.e. if there are only 2, there will be one
+                    # 3 = 3, 4 = 6, 5 = 10, 6 = 15, 7 = 21, 8 = 28, etc.
                     for c in combinations(ent, 2):
                         dic = {'sent': u''}
                         dic['doc_id'] = doc_id
                         dic['sent_id'] = counter
                         for j, t in enumerate(tmp):
+                            # for the first named entity, treat it as the subject
                             if j == c[0]:
                                 if len(dic['sent']) > 0:
                                     dic['subj_begin'] = len(dic['sent']) + 1
                                 else:
                                     dic['subj_begin'] = 0
+
                                 if len(dic['sent']) > 0:
                                     dic['subj_end'] = len(dic['sent']) + len(t[0].strip()) + 1
                                 else:
                                     dic['subj_end'] = len(t[0].strip())
-                                dic['subj'] = t[0].strip()
-                                dic['subj_tag'] = t[1].strip()
+                                dic['subj'] = t[0].strip()      # named entity string
+                                dic['subj_tag'] = t[1].strip()  # tag name of string from NER
                             elif j == c[1]:
+                                # for the second named entity, treat it as the object
                                 dic['obj_begin'] = len(dic['sent']) + 1
                                 dic['obj_end'] = len(dic['sent']) + len(t[0].strip()) + 1
-                                dic['obj'] = t[0].strip()
-                                dic['obj_tag'] = t[1].strip()
+                                dic['obj'] = t[0].strip()       # named entity string
+                                dic['obj_tag'] = t[1].strip()   # tag name of string from NER
 
+                            # re-assemble the sentence
+                            # 0 = named entity, which is an empty string if nothing was detected
                             if len(dic['sent']) > 0:
                                 dic['sent'] += ' ' + t[0].strip()
                             else:
                                 dic['sent'] += t[0].strip()
+
+                            # 2 = text following the named entity, which is usually the bulk of the content
                             if len(dic['sent']) > 0:
                                 dic['sent'] += ' ' + t[2].strip()
                             else:
                                 dic['sent'] += t[2].strip()
-                                #print('"'+dic['sent']+'"', len(dic['sent']))
+
                         rows.append(dic)
-                        #print(dic)
+
                     counter += 1
                     tmp = []
                 elif len(line.strip()) < 1 and len(tmp) > 0 and len(tmp) <= 2:
                     continue
                 elif len(line.strip()) > 0:
+                    # extract the contents of the original sentence, as it was before NER
+                    # there should be exactly 3 \t for each word from NER, if not pad them
+                    # 0 = named entity string
+                    # 1 = named entity tag (i.e. ORGANIZATION)
+                    # 2 = noun chunk after the named entity
                     e = line.split('\t')
                     if len(e) == 1:
                         e.insert(0, '')
@@ -221,6 +257,7 @@ def read_ner_output(filenames):
                     if len(e) != 3:
                         print(e)
                         raise Exception
+                    # store running list of the NER output
                     tmp.append(e)
                 else:
                     continue
@@ -399,62 +436,78 @@ def loop(step, doc_id, limit, entities, relations, counter):
     # Named Entity Recognition
     print('[2/4] Performing named entity recognition ...')
     # exec_ner(docs)
-    wiki_data = read_ner_output(docs)
+    # wiki_data = read_ner_output(docs)
     path = os.path.join(data_dir, 'candidates%d.tsv' % step)
-    wiki_data.to_csv(path, sep='\t', encoding='utf-8')
+    if not os.path.isfile(path):
+        wiki_data = read_ner_spacy(docs)
+        wiki_data.to_csv(path, sep='\t', encoding='utf-8', index=False)
+    else:
+        wiki_data = pd.read_csv(path, sep='\t', encoding='utf-8')
+
     doc_id.extend([int(s) for s in wiki_data.doc_id.unique()])
 
     # Prepare Containers
-    unique_entities = set([])
-    unique_entity_pairs = set([])
-    for idx, row in wiki_data.iterrows():
-        unique_entities.add((row['subj'], row['subj_tag']))
-        unique_entities.add((row['obj'], row['obj_tag']))
-        unique_entity_pairs.add((row['subj'], row['obj']))
+    unique_entities = set(wiki_data.groupby(['subj', 'subj_tag']).count().index.tolist())
+    unique_entities.update(set(wiki_data.groupby(['obj', 'obj_tag']).count().index.tolist()))
+    unique_entity_pairs =  set(wiki_data.groupby(['subj', 'obj']).count().index.tolist())
+    # for idx, row in wiki_data.iterrows():
+    #     unique_entities.add((row['subj'], row['subj_tag']))
+    #     unique_entities.add((row['obj'], row['obj_tag']))
+    #     unique_entity_pairs.add((row['subj'], row['obj']))
 
     # Entity Linkage
     print('[3/4] Linking entities ...')
-    for name, tag in unique_entities:
-        if not name in entities and tag in tag_map.keys():
-            e = name2qid(name, tag, alias=False)
-            if e is None:
-                e = name2qid(name, tag, alias=True)
-            entities[name] = e
-    util.dump_to_file(os.path.join(data_dir, "entities.cPickle"), entities)
+    entities_filename = os.path.join(data_dir, "entities.pickle")
+    if os.path.isfile(entities_filename):
+        entities = util.load_from_dump(entities_filename)
+    else:
+        for name, tag in unique_entities:
+            if not name in entities and tag in tag_map.keys():
+                e = name2qid(name, tag, alias=False)
+                if e is None:
+                    e = name2qid(name, tag, alias=True)
+                entities[name] = e
+        util.dump_to_file(entities_filename, entities)
 
     # Predicate Linkage
     print('[4/4] Linking predicates ...')
-    for subj, obj in unique_entity_pairs:
-        if not (subj, obj) in relations:
-            if entities[subj] is not None and entities[obj] is not None:
-                if (entities[subj][0] != entities[obj][0]) or (subj != obj):
-                    arg1 = entities[subj][0]
-                    arg2 = entities[obj][0]
-                    relations[(subj, obj)] = search_property(arg1, arg2)
-                    #TODO: alternative name relation
-                    #elif (entities[subj][0] == entities[obj][0]) and (subj != obj):
-                    #    relations[(subj, obj)] = 'P'
-    util.dump_to_file(os.path.join(data_dir, "relations.cPickle"), relations)
+    predicates_filename = os.path.join(data_dir, "relations.pickle")
+    if os.path.isfile(predicates_filename):
+        relations = util.load_from_dump(predicates_filename)
+    else:
+        for subj, obj in unique_entity_pairs:
+            if not (subj, obj) in relations:
+                if entities.get(subj) is not None and entities.get(obj) is not None:
+                    if (entities[subj][0] != entities[obj][0]) or (subj != obj):
+                        arg1 = entities[subj][0]
+                        arg2 = entities[obj][0]
+                        relations[(subj, obj)] = search_property(arg1, arg2)
+                        #TODO: alternative name relation
+                        #elif (entities[subj][0] == entities[obj][0]) and (subj != obj):
+                        #    relations[(subj, obj)] = 'P'
+        util.dump_to_file(predicates_filename, relations)
 
     # Assign relation
+    # i.e. extract the 'class' name for this relationship
     wiki_data['rel'] = pd.Series(index=wiki_data.index, dtype=str)
-    for idx, row in wiki_data.iterrows():
-        entity_pair = (row['subj'], row['obj'])
+    rel = list(map(lambda x: ', '.join(set([s[0] for s in x])), relations.values()))
+    for i, r in enumerate(relations):
+        if len(rel[i]) > 0:
+            # counter += 1
+            idx = (wiki_data['subj'] == r[0]) & (wiki_data['obj'] == r[1])
+            wiki_data.loc[idx, 'rel'] = rel[i]
 
-        if entity_pair in relations:
-            rel = relations[entity_pair]
-            if rel is not None and len(rel) > 0:
-                counter += 1
-                wiki_data.set_value(idx, 'rel', ', '.join(set([s[0] for s in rel])))
+
     # Save
     path = os.path.join(data_dir, 'candidates%d.tsv' % step)
-    wiki_data.to_csv(path, sep='\t', encoding='utf-8')
+    wiki_data.to_csv(path, sep='\t', encoding='utf-8', index=False)
 
     # Cleanup
-    for f in glob.glob(os.path.join(orig_dir, '*')):
-        os.remove(f)
-    for f in glob.glob(os.path.join(ner_dir, '*')):
-        os.remove(f)
+    # for f in glob.glob(os.path.join(orig_dir, '*')):
+    #     os.remove(f)
+    #
+    # for f in glob.glob(os.path.join(ner_dir, '*')):
+    #     os.remove(f)
 
     return doc_id, entities, relations, counter
 
@@ -508,16 +561,17 @@ def positive_examples():
         step += 1
 
     # positive candidates
+    # extract all observations from the wiki crawl which have at least one relationship (i.e. 'class')
     positive_data = []
     for f in glob.glob(os.path.join(data_dir, 'candidates*.tsv')):
-        pos = pd.read_csv(f, sep='\t', encoding='utf-8', index_col=0)
+        pos = pd.read_csv(f, sep='\t', encoding='utf-8')
         positive_data.append(pos[pd.notnull(pos.rel)])
     positive_df = pd.concat(positive_data, axis=0, ignore_index=True)
-    positive_df[col].to_csv(os.path.join(data_dir, 'positive_candidates.tsv'), sep='\t', encoding='utf-8')
+    positive_df[col].to_csv(os.path.join(data_dir, 'positive_candidates.tsv'), sep='\t', encoding='utf-8', index=False)
 
     # save relations
     pos_rel = extract_relations(entities, relations)
-    pos_rel.to_csv(os.path.join(data_dir, 'positive_relations.tsv'), sep='\t', encoding='utf-8')
+    pos_rel.to_csv(os.path.join(data_dir, 'positive_relations.tsv'), sep='\t', encoding='utf-8', index=False)
 
 
 def negative_examples():
@@ -527,15 +581,15 @@ def negative_examples():
     neg_candidates = []
 
     #TODO: replace with positive_relations.tsv
-    entities = util.load_from_dump(os.path.join(data_dir, "entities.cPickle"))
-    relations = util.load_from_dump(os.path.join(data_dir, "relations.cPickle"))
+    entities = util.load_from_dump(os.path.join(data_dir, "entities.pickle"))
+    relations = util.load_from_dump(os.path.join(data_dir, "relations.pickle"))
 
     rel_counter = Counter([u[0] for r in relations.values() if r is not None and len(r) > 0 for u in r])
     most_common_rel = [r[0] for r in rel_counter.most_common(10)]
 
 
     for data_path in glob.glob(os.path.join(data_dir, 'candidates*.tsv')):
-        neg = pd.read_csv(data_path, sep='\t', encoding='utf-8', index_col=0)
+        neg = pd.read_csv(data_path, sep='\t', encoding='utf-8')
         negative_df = neg[pd.isnull(neg.rel)]
 
         # Assign relation
@@ -561,13 +615,14 @@ def negative_examples():
                     neg_candidates.append(row)
 
 
+    # extract all observations from the wiki crawl which have at least one relationship (i.e. 'class')
     neg_examples = pd.DataFrame(neg_candidates)
-    neg_examples[col].to_csv(os.path.join(data_dir, 'negative_candidates.tsv'), sep='\t', encoding='utf-8')
+    neg_examples[col].to_csv(os.path.join(data_dir, 'negative_candidates.tsv'), sep='\t', encoding='utf-8', index=False)
 
 
     # save relations
     #pos_rel = extract_relations(entities, negative)
-    #pos_rel.to_csv(os.path.join(data_dir, 'positive_relations.tsv'), sep='\t', encoding='utf-8')
+    #pos_rel.to_csv(os.path.join(data_dir, 'negative_relations.tsv'), sep='\t', encoding='utf-8')
 
 
 def load_gold_patterns():
@@ -621,12 +676,14 @@ def extract_positive():
 
 
     #TODO: replace with negative_relations.tsv
-    entities = util.load_from_dump(os.path.join(data_dir, "entities.cPickle"))
-    relations = util.load_from_dump(os.path.join(data_dir, "relations.cPickle"))
+    entities = util.load_from_dump(os.path.join(data_dir, "entities.pickle"))
+    relations = util.load_from_dump(os.path.join(data_dir, "relations.pickle"))
 
-    # filter out the relations which occur less than 50 times
+    # count the number of times each 'class' appeared
+    # take the 50 most common class combinations, and filter out the relations which occur less than n times
+    top_n = 0
     rel_c = Counter([u[0] for r in relations.values() if r is not None and len(r) > 0 for u in r])
-    rel_c_top = [k for k, v in rel_c.most_common(50) if v >= 50]
+    rel_c_top = [k for k, v in rel_c.most_common(50) if v >= top_n]
 
     # positive examples
     positive_df = pd.read_csv(os.path.join(data_dir, 'positive_candidates.tsv'),
@@ -648,8 +705,8 @@ def extract_positive():
             if len(rel) > 0:
 
                 s = row['sent']
-                subj = '<' + entities[row['subj'].encode('utf-8')][0] + '>'
-                obj = '<' + entities[row['obj'].encode('utf-8')][0] + '>'
+                subj = '<' + entities.get(row['subj'], (row['subj'], ))[0] + '>'
+                obj = '<' + entities.get(row['obj'], (row['obj'], ))[0] + '>'
                 left = s[:row['subj_begin']] + subj
                 middle = s[row['subj_end']:row['obj_begin']]
                 right = obj + s[row['obj_end']:]
@@ -675,7 +732,9 @@ def extract_positive():
                             label[rel_c_top.index(u.strip())] = '1'
                     positive_df.set_value(idx, 'label', ' '.join(label))
 
-                    # score reliability if positive
+                    # score reliability if positive match on any known token patterns
+                    # TODO: is this mainly used for the distant supervision training set build?
+                    # https://github.com/beroth/relationfactory/blob/master/resources/manual_annotation/context_patterns2012.txt
                     reliability = score_reliability(gold_patterns, s, row['rel'], row['subj'], row['obj'])
                     positive_df.set_value(idx, 'attention', reliability)
 
@@ -706,7 +765,7 @@ def extract_positive():
 
 
 def extract_negative():
-    entities = util.load_from_dump(os.path.join(data_dir, "entities.cPickle"))
+    entities = util.load_from_dump(os.path.join(data_dir, "entities.pickle"))
 
     # negative examples
     negative_df = pd.read_csv(os.path.join(data_dir, 'negative_candidates.tsv'),
@@ -732,8 +791,8 @@ def extract_negative():
 
 def main():
     # gather positive examples
-    #if not os.path.exists(os.path.join(data_dir, 'positive_candidates.tsv')):
-    positive_examples()
+    if not os.path.exists(os.path.join(data_dir, 'positive_candidates.tsv')):
+        positive_examples()
     extract_positive()
 
     # gather negative examples

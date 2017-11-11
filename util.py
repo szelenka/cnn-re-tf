@@ -344,6 +344,12 @@ def calc_auc_pr(precision, recall, threshold=5):
     return np.trapz(offset(np.nan_to_num(precision), 1, 0), x=offset(np.nan_to_num(recall), 0, 1), dx=threshold)
 
 
+def calc_fr(precision, recall, threshold=5):
+    assert len(precision) == len(recall)
+    # return zero rather than nan
+    return (2.0 * precision[threshold] * recall[threshold]) / (precision[threshold] + recall[threshold]) if (precision[threshold] + recall[threshold]) > 0 else 0.0
+
+
 def prepare_ids(data_dir, vocab_path):
     for context in ['left', 'middle', 'right', 'txt']:
         data_path = os.path.join(data_dir, 'mlmi', 'source.%s' % context)

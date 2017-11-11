@@ -2,6 +2,8 @@
 
 **Note:** This project is mostly based on https://github.com/yuhaozhang/sentence-convnet
 
+MIML (Multi-Instance Multi-Label learning) framework where an example is described by multiple instances and associated with multiple class labels. Compared to traditional learning frameworks, the MIML framework is more convenient and natural for representing complicated objects which have multiple semantic meanings
+
 ---
 
 

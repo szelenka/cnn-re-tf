@@ -158,7 +158,7 @@ def train(train_data, test_data):
                 # look at the 5th index, which corresponds to a threshold = 0.5
                 threshold = 5
                 auc = util.calc_auc_pr(pre, rec, threshold)
-                f1 = (2.0 * pre[threshold] * rec[threshold]) / (pre[threshold] + rec[threshold])
+                f1 = utll.calc_f1(pre, rec, threshold)
                 train_auc.append(auc)
                 train_f1_score.append(f1)
 
