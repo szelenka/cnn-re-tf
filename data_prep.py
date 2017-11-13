@@ -436,7 +436,7 @@ def create_source_file(src_path, data_path, data_column=''):
 
 def extract_text_from_file(dst_path, data_path, data_column):
     with io.open(dst_path, mode='w', encoding='utf-8') as f:
-        for line in pd.read_csv(data_path)[data_column].tolist():
+        for line in pd.read_csv(data_path)[data_column].fillna('').tolist():
             f.write(line + '\n')
 
 
