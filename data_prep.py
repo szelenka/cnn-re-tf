@@ -282,7 +282,7 @@ def split_sentence_to_vocab_ints(source_filename, data_column='clean_text', is_t
     _X = []
 
     # explicitly load observations with sequential index
-    df_raw = pd.read_csv(source_filename)
+    df_raw = pd.read_csv(source_filename).fillna('')
 
     # specify the train/test split for multi-instance
     df_raw['is_test'] = False
