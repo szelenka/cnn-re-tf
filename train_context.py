@@ -222,9 +222,9 @@ def train(train_data, test_data):
                           (datetime.now(), global_step, max_steps, current_lr))
                     decay_step_counter = 0
 
-                if current_lr < 1e-5:
-                    print('stop learning if learning rate is too low: {:.}'.format(current_lr))
-                    break
+                # if current_lr < 1e-5:
+                #     print('stop learning if learning rate is too low: {:.}'.format(current_lr))
+                #     break
 
                 # save checkpoint
                 if global_step % FLAGS.checkpoint_step == 0:
