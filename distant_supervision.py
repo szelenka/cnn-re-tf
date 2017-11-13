@@ -123,14 +123,6 @@ def exec_ner(filenames):
 
 def read_ner_spacy(filenames):
     """read NER output files and store them in a pandas DataFrame"""
-    # class Corpus(object):
-    #     def __iter__(self):
-    #         for parsed in nlp.pipe(
-    #             texts=data,
-    #             batch_size=5000,
-    #             n_threads=cpu_count() - 1 # use as many cores that are available
-    #         ):
-    #             yield cb(parsed)
     rows = []
     for filename in filenames:
         path = os.path.join(orig_dir, filename)

@@ -10,15 +10,13 @@ MIML (Multi-Instance Multi-Label learning) framework where an example is describ
 ## Requirements
 
 - [Python >= 3.5](https://www.python.org/)
-- [Tensorflow](https://www.tensorflow.org/) (tested with version <strike>0.10.0rc0</strike> -> 1.0.1)
+- [Tensorflow](https://www.tensorflow.org/) (tested with version 1.4.0)
 - [Numpy](http://www.numpy.org/)
 
 To download wikipedia articles (`distant_supervision.py`)
 
 - [Beautifulsoup](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
 - [Pandas](http://pandas.pydata.org/)
-- [Stanford NER](http://nlp.stanford.edu/software/CRF-NER.shtml)
-    *Path to Stanford-NER is specified in `ner_path` variable in `distant_supervision.py`
 
 To visualize the results (`visualize.ipynb`)
 

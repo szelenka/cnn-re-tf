@@ -8,31 +8,29 @@ import numpy as np
 
 import cnn_context
 import util
+import data_prep
 
+source_dir = 'pybossa_raw'
 
 FLAGS = tf.app.flags.FLAGS
 
 # train parameters
 this_dir = os.path.abspath(os.path.dirname(__file__))
-tf.app.flags.DEFINE_string('data_dir', os.path.join(this_dir, 'data', 'mlmi'), 'Directory of the data')
-tf.app.flags.DEFINE_string('train_dir', os.path.join(this_dir, 'train'),
-                           'Directory to save training checkpoint files')
-tf.app.flags.DEFINE_integer('train_size', 100000, 'Number of training examples')
-tf.app.flags.DEFINE_integer('num_epochs', 10, 'Number of epochs to run')
-tf.app.flags.DEFINE_boolean('use_pretrain', False, 'Use word2vec pretrained embeddings or not')
 
-tf.app.flags.DEFINE_string('optimizer', 'adam',
-                           'Optimizer to use. Must be one of "sgd", "adagrad", "adadelta" and "adam"')
-tf.app.flags.DEFINE_float('init_lr', 1e-3, 'Initial learning rate')
+tf.app.flags.DEFINE_string('data_dir', os.path.join(this_dir, 'data', source_dir), 'Directory of the data')
+tf.app.flags.DEFINE_string('train_dir', os.path.join(this_dir, 'runs'), 'Directory to save training checkpoint files')
+tf.app.flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to run')
+tf.app.flags.DEFINE_boolean('use_pretrain', True, 'Use word2vec pretrained embeddings or not')
+
+tf.app.flags.DEFINE_string('optimizer', 'adam', 'Optimizer to use. Must be one of "sgd", "adagrad", "adadelta" and "adam"')
+tf.app.flags.DEFINE_float('init_lr', 1e-5, 'Initial learning rate')
 tf.app.flags.DEFINE_float('lr_decay', 0.95, 'LR decay rate')
-tf.app.flags.DEFINE_integer('tolerance_step', 500,
-                            'Decay the lr after loss remains unchanged for this number of steps')
+tf.app.flags.DEFINE_integer('tolerance_step', 500, 'Decay the lr after loss remains unchanged for this number of steps')
 tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout rate. 0 is no dropout.')
 
 # logging
 tf.app.flags.DEFINE_integer('log_step', 10, 'Display log to stdout after this step')
-tf.app.flags.DEFINE_integer('summary_step', 50,
-                            'Write summary (evaluate model on dev set) after this step')
+tf.app.flags.DEFINE_integer('summary_step', 50, 'Write summary (evaluate model on dev set) after this step')
 tf.app.flags.DEFINE_integer('checkpoint_step', 100, 'Save model after this step')
 
 
@@ -43,7 +41,8 @@ def train(train_data, test_data):
 
     # save flags
     if not os.path.exists(out_dir):
-        os.mkdir(out_dir)
+        os.makedirs(out_dir)
+        
     FLAGS._parse_flags()
     config = dict(FLAGS.__flags.items())
 
@@ -55,14 +54,15 @@ def train(train_data, test_data):
     config['contextwise'] = True
 
     # save flags
-    util.dump_to_file(os.path.join(out_dir, 'flags.cPickle'), config)
+    util.dump_to_file(os.path.join(out_dir, 'flags.pickle'), config)
     print("Parameters:")
     for k, v in config.items():
         print('%20s %r' % (k, v))
 
     # max number of steps
-    num_batches_per_epoch = int(np.ceil(float(len(train_data))/FLAGS.batch_size))
+    num_batches_per_epoch = int(np.ceil(float(train_data.shape[0])/FLAGS.batch_size))
     max_steps = num_batches_per_epoch * FLAGS.num_epochs
+    print("num_batches_per_epoch: {:,} max steps: {:,}".format(num_batches_per_epoch, max_steps))
 
     with tf.Graph().as_default():
         with tf.variable_scope('cnn', reuse=None):
@@ -117,10 +117,12 @@ def train(train_data, test_data):
                 test_batches = util.batch_iter(test_data, batch_size=FLAGS.batch_size, num_epochs=1, shuffle=False)
                 for batch in test_batches:
                     left_batch, middle_batch, right_batch, y_batch, _ = zip(*batch)
-                    feed = {mtest.left: np.array(left_batch),
-                            mtest.middle: np.array(middle_batch),
-                            mtest.right: np.array(right_batch),
-                            mtest.labels: np.array(y_batch)}
+                    feed = {
+                        mtest.left: np.array(left_batch),
+                        mtest.middle: np.array(middle_batch),
+                        mtest.right: np.array(right_batch),
+                        mtest.labels: np.array(y_batch)
+                    }
                     loss_value, eval_value = sess.run([mtest.total_loss, mtest.eval_op], feed_dict=feed)
                     dev_loss.append(loss_value)
                     pre, rec = zip(*eval_value)
@@ -144,10 +146,12 @@ def train(train_data, test_data):
                 global_step += 1
 
                 left_batch, middle_batch, right_batch, y_batch, a_batch = zip(*batch)
-                feed = {m.left: np.array(left_batch),
-                        m.middle: np.array(middle_batch),
-                        m.right: np.array(right_batch),
-                        m.labels: np.array(y_batch)}
+                feed = {
+                    m.left: np.array(left_batch),
+                    m.middle: np.array(middle_batch),
+                    m.right: np.array(right_batch),
+                    m.labels: np.array(y_batch)
+                }
                 if FLAGS.attention:
                     feed[m.attention] = np.array(a_batch)
                 start_time = time.time()
@@ -158,7 +162,7 @@ def train(train_data, test_data):
                 # look at the 5th index, which corresponds to a threshold = 0.5
                 threshold = 5
                 auc = util.calc_auc_pr(pre, rec, threshold)
-                f1 = utll.calc_f1(pre, rec, threshold)
+                f1 = util.calc_f1(pre, rec, threshold)
                 train_auc.append(auc)
                 train_f1_score.append(f1)
 
@@ -218,13 +222,14 @@ def train(train_data, test_data):
                           (datetime.now(), global_step, max_steps, current_lr))
                     decay_step_counter = 0
 
-                # stop learning if learning rate is too low
                 if current_lr < 1e-5:
+                    print('stop learning if learning rate is too low: {:.}'.format(current_lr))
                     break
 
                 # save checkpoint
                 if global_step % FLAGS.checkpoint_step == 0:
                     saver.save(sess, save_path, global_step=global_step)
+
             saver.save(sess, save_path, global_step=global_step)
 
 
@@ -237,16 +242,10 @@ def main(argv=None):
         os.mkdir(FLAGS.train_dir)
 
     # load contextwise dataset
-    source_path = os.path.join(FLAGS.data_dir, 'ids')
-    target_path = os.path.join(FLAGS.data_dir, 'target.txt')
-    attention_path = None
-    if FLAGS.attention:
-        if os.path.exists(os.path.join(FLAGS.data_dir, 'source.att')):
-            attention_path = os.path.join(FLAGS.data_dir, 'source.att')
-        else:
-            raise ValueError("Attention file %s not found.", os.path.join(FLAGS.data_dir, 'source.att'))
-    train_data, test_data = util.read_data_contextwise(source_path, target_path, FLAGS.sent_len,
-                                                       attention_path=attention_path, train_size=FLAGS.train_size)
+    train_data, test_data = data_prep.read_data_contextwise(
+        FLAGS.data_dir,
+        FLAGS.sent_len
+    )
     train(train_data, test_data)
 
 
