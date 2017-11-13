@@ -461,7 +461,7 @@ def __main(input_filename, data_column='clean_text', max_vocab_size=36500, embed
     df_path = os.path.join(dest_dir, 'sentence_splits.csv')
     if not os.path.isfile(df_path):
         df = split_sentence_to_vocab_ints(input_filename, data_column=data_column, is_train=is_train)
-        df.to_csv(os.path.join(dest_dir, df_path), index=False)
+        df.to_csv(df_path, index=False)
     else:
         df = pd.read_csv(df_path)
 
