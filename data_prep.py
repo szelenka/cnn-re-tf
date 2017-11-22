@@ -388,13 +388,14 @@ def preserve_sentence_to_disk(df, path, label_column='label', force=True):
     _df_write_to_disk(os.path.join(test, 'targets.txt'), df[~idx][label_column].apply(binary_ize))
 
 
-def _load_bin_vec(fname, vocab):
+def _load_bin_vec(fname, vocab_path):
     """
     Loads 300x1 word vecs from Google (Mikolov) word2vec
 
     Original taken from
     https://github.com/yuhaozhang/sentence-convnet/blob/master/text_input.py
     """
+    vocab, _ = initialize_vocabulary(vocab_path, binary=True)
     word_vecs = dict()
     with io.open(fname, mode="rb") as f:
         header = f.readline()
@@ -415,7 +416,22 @@ def _load_bin_vec(fname, vocab):
             else:
                 # skip over word from vector file, it's not recognized from the input text
                 f.read(binary_len)
-    return word_vecs, layer1_size
+    return word_vecs, layer1_size, vocab
+
+
+def _load_txt_vec(fname, vocab_path):
+    vocab, _ = initialize_vocabulary(vocab_path, binary=False)
+    word_vecs = dict()
+    layer1_size = None
+    with io.open(fname, mode="r", encoding='utf-8') as f:
+        for line in f:
+            parts = line.split()
+            if layer1_size is None:
+                layer1_size = len(parts) - 1
+            if parts[0] in vocab:
+                word_vecs[parts[0]] = np.array(parts[1:], dtype='float32')
+    return word_vecs, layer1_size, vocab
+    
 
 
 def _add_random_vec(word_vecs, vocab, emb_size=300):
@@ -433,9 +449,12 @@ def _add_random_vec(word_vecs, vocab, emb_size=300):
     return word_vecs
 
 
-def prepare_pretrained_embedding(fname, word2id):
+def prepare_pretrained_embedding(fname, vocab_path):
     print('Reading pretrained word vectors from file ...')
-    word_vecs, emb_size = _load_bin_vec(fname, word2id)
+    if fname.endswith('bin'):
+        word_vecs, emb_size, word2id = _load_bin_vec(fname, vocab_path)
+    else:
+        word_vecs, emb_size, word2id = _load_txt_vec(fname, vocab_path)
     word_vecs = _add_random_vec(word_vecs, word2id, emb_size)
     embedding = np.zeros([len(word2id), emb_size])
     for w, idx in word2id.items():
@@ -491,8 +510,7 @@ def __main(input_filename, data_column='clean_text', max_vocab_size=36500, embed
     embedding_path = os.path.join(THIS_DIR, embedding_filename)
     emb_path = os.path.join(dest_dir, 'emb.npy')
     if not os.path.isfile(emb_path):
-        word2id, _ = initialize_vocabulary(vocab_path, binary=True)
-        embedding = prepare_pretrained_embedding(embedding_path, word2id)
+        embedding = prepare_pretrained_embedding(embedding_path, vocab_path)
         np.save(emb_path, embedding)
 
 
@@ -533,7 +551,7 @@ def read_data_contextwise(source_path, sent_len):
         _y = np.array(_y)
 
         assert len(_X['left']) == len(_y)
-        print("\t{:,} examples found.".format(len(_y)))
+        print("\t{:,} {} examples found.".format(len(_y), _set))
 
         _at = None
         path = os.path.join(source_path, _set, 'attention.txt')
@@ -563,5 +581,5 @@ def read_data_contextwise(source_path, sent_len):
 if __name__ == '__main__':
     input_filename = os.path.abspath(sys.argv[1])
     max_vocab_size = 36500
-    embedding_filename = 'word2vec/GoogleNews-vectors-negative300.bin'
+    embedding_filename = 'word2vec/glove.42B.300d.txt'
     __main(input_filename, max_vocab_size=max_vocab_size, embedding_filename=embedding_filename, is_train=True)

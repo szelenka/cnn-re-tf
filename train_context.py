@@ -23,7 +23,7 @@ tf.app.flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to run')
 tf.app.flags.DEFINE_boolean('use_pretrain', True, 'Use word2vec pretrained embeddings or not')
 
 tf.app.flags.DEFINE_string('optimizer', 'adam', 'Optimizer to use. Must be one of "sgd", "adagrad", "adadelta" and "adam"')
-tf.app.flags.DEFINE_float('init_lr', 1e-5, 'Initial learning rate')
+tf.app.flags.DEFINE_float('init_lr', 1e-6, 'Initial learning rate')
 tf.app.flags.DEFINE_float('lr_decay', 0.95, 'LR decay rate')
 tf.app.flags.DEFINE_integer('tolerance_step', 500, 'Decay the lr after loss remains unchanged for this number of steps')
 tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout rate. 0 is no dropout.')
