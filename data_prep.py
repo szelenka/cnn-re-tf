@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import re
 import spacy
@@ -174,6 +175,18 @@ def get_vocab_int(text):
     return vocab_ints.get(word)
 
 
+def get_noun_chunks(parsed):
+    nc = defaultdict(list)
+    for chunk in parsed.noun_chunks:
+        nc[chunk.sent.start_char].append(dict(
+            begin=chunk.start_char,
+            end=chunk.end_char,
+            text=chunk.text,
+            tag=chunk.root.dep_
+        ))
+
+    return nc
+
 def get_named_entities(parsed):
     ner = defaultdict(list)
     for ent in parsed.ents:
@@ -190,7 +203,8 @@ def get_named_entities(parsed):
 
 
 def spacy_tokenizer(doc):
-    return ' '.join(doc.split())
+    # return ' '.join(doc.split())
+    return ' '.join(re.sub('([^0-9a-zA-Z\'])', ' \\1 ', doc).split())
     # output = []
     # for token in doc:
     #     if token.is_space or token.is_punct:
@@ -203,7 +217,7 @@ def spacy_tokenizer(doc):
     # return ' '.join(output)
 
 
-def get_sentence_combinations(doc_id, ner, parsed, tokenizer=None):
+def get_sentence_combinations(doc_id, splits, parsed, tokenizer=None):
     if tokenizer is None:
         tokenizer = spacy_tokenizer
 
@@ -212,40 +226,41 @@ def get_sentence_combinations(doc_id, ner, parsed, tokenizer=None):
     for sent_id, sentence in enumerate(parsed.sents):
         # get named entities in this sentence
         # TODO: replace NER partitioning with noun_chunks?
-        ent = ner.get(sentence.start_char, [])
+        sent_splits = splits.get(sentence.start_char, [])
         sent = None
-        if len(ent) == 0 :
+        if len(sent_splits) == 0 :
             # no entities to split on, likely improper sentence
             # TODO: place full sentence in left or split evenly on tokens?
-            sent = sentence_tuple(
+            sent = [sentence_tuple(
                 doc_id=doc_id,
                 sent_id=sent_id,
                 left=tokenizer(sentence.string),
                 middle='',
                 right=''
-            )
-        elif len(ent) == 1:
+            )]
+        elif len(sent_splits) == 1:
             # only one entity to split on, neglect middle
             # simulate call where two named entities are immediately next to one another
-            left_entity = ent[0]['text']
-            left_entity_begin = ent[0]['begin'] - sentence.start_char
-            left_entity_end = ent[0]['end'] - sentence.start_char
-            left_entity_tag = ent[0]['tag']
+            left_entity = sent_splits[0]['text']
+            left_entity_begin = sent_splits[0]['begin'] - sentence.start_char
+            left_entity_end = sent_splits[0]['end'] - sentence.start_char
+            left_entity_tag = sent_splits[0]['tag']
 
             s = sentence.string
             left = s[:left_entity_begin] + left_entity
             right = s[left_entity_end:]
 
-            sent = sentence_tuple(
+            sent = [sentence_tuple(
                 doc_id=doc_id,
                 sent_id=sent_id,
                 left=tokenizer(left),
                 middle='',
                 right=tokenizer(right)
-            )
+            )]
         else:
             # if there are more than two, process each combination
-            for c in combinations(ent, 2):
+            sent = []
+            for c in combinations(sent_splits, 2):
                 # TODO: should we skip when two NER are immediately next to one another?
                 # TODO: the original implementation does not skip...
 
@@ -263,16 +278,16 @@ def get_sentence_combinations(doc_id, ner, parsed, tokenizer=None):
                 left = s[:left_entity_begin] + left_entity
                 right = right_entity + s[right_entity_end:]
                 middle = s[left_entity_end:right_entity_begin]
-                sent = sentence_tuple(
+                sent.append(sentence_tuple(
                     doc_id=doc_id,
                     sent_id=sent_id,
                     left=tokenizer(left),
                     middle=tokenizer(middle),
                     right=tokenizer(right)
-                )
+                ))
 
         if sent is not None:
-            rows.append(sent)
+            rows.extend(sent)
 
     return rows
 
@@ -306,8 +321,9 @@ def split_sentence_to_vocab_ints(source_filename, data_column='clean_text', is_t
             batch_size=5000,
             n_threads=cpu_count() - 1
     )):
-        ner = get_named_entities(parsed)
-        combos = get_sentence_combinations(doc_id, ner, parsed)
+        # splits = get_named_entities(parsed)
+        splits = get_noun_chunks(parsed)
+        combos = get_sentence_combinations(doc_id, splits, parsed)
         _X.extend(combos)
 
     # join back with input, for label allocation to proper documents/sentences
@@ -440,7 +456,7 @@ def extract_text_from_file(dst_path, data_path, data_column):
             f.write(line + '\n')
 
 
-def __main(input_filename, data_column='clean_text', max_vocab_size=36500, embedding_filename='GoogleNews-vectors-negative300.bin', is_train=False):
+def __main(input_filename, data_column='clean_text', max_vocab_size=36500, embedding_filename='word2vec/GoogleNews-vectors-negative300.bin', is_train=False):
     THIS_DIR = os.path.dirname(__file__)
     # data_dir = os.path.join(THIS_DIR, 'data')
     dest_dir = os.path.join(THIS_DIR, 'data', os.path.basename(os.path.splitext(input_filename)[0]))
@@ -472,7 +488,7 @@ def __main(input_filename, data_column='clean_text', max_vocab_size=36500, embed
     prepare_ids(dest_dir, vocab_path)
 
     # pretrained embeddings
-    embedding_path = os.path.join(THIS_DIR, 'word2vec', embedding_filename)
+    embedding_path = os.path.join(THIS_DIR, embedding_filename)
     emb_path = os.path.join(dest_dir, 'emb.npy')
     if not os.path.isfile(emb_path):
         word2id, _ = initialize_vocabulary(vocab_path, binary=True)
@@ -546,4 +562,6 @@ def read_data_contextwise(source_path, sent_len):
 
 if __name__ == '__main__':
     input_filename = os.path.abspath(sys.argv[1])
-    __main(input_filename, is_train=True)
+    max_vocab_size = 36500
+    embedding_filename = 'word2vec/GoogleNews-vectors-negative300.bin'
+    __main(input_filename, max_vocab_size=max_vocab_size, embedding_filename=embedding_filename, is_train=True)
